@@ -1,0 +1,957 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>One Thread — Consultant Flow Prototype</title>
+  <style>
+    :root{
+      --bg:#f6f7f8;
+      --card:#ffffff;
+      --text:#0f172a;
+      --muted:#64748b;
+      --line:rgba(15,23,42,.10);
+      --shadow: 0 12px 40px rgba(15,23,42,.10);
+      --r:18px;
+      --r2:14px;
+      --max: 1040px;
+      --pad: 34px;
+      --pad2: 22px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      color:var(--text);
+      background: radial-gradient(900px 500px at 18% -10%, rgba(59,130,246,.10), transparent 55%),
+                  radial-gradient(700px 420px at 90% 0%, rgba(16,185,129,.08), transparent 55%),
+                  var(--bg);
+    }
+    a{color:inherit}
+    button,input,textarea{font:inherit}
+
+    .wrap{max-width:var(--max); margin:0 auto; padding: 22px 18px 90px;}
+
+    /* Top bar */
+    .top{
+      position:sticky; top:0; z-index:20;
+      background: rgba(246,247,248,.78);
+      backdrop-filter: blur(10px);
+      border-bottom:1px solid rgba(15,23,42,.06);
+    }
+    .topIn{
+      max-width:var(--max); margin:0 auto;
+      padding: 14px 18px;
+      display:flex; align-items:center; justify-content:space-between; gap:14px;
+    }
+    .brand{display:flex; align-items:center; gap:12px; min-width:0}
+    .mark{
+      width:12px; height:12px; border-radius:50%;
+      background: radial-gradient(circle at 35% 35%, #c7ddff, #3b82f6 55%);
+      box-shadow: 0 0 0 6px rgba(59,130,246,.10);
+      flex:none;
+    }
+    .brandText{min-width:0}
+    .brandText b{display:block; font-size:14px; letter-spacing:.2px}
+    .brandText span{display:block; font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+
+    .topBtns{display:flex; gap:10px; flex:none}
+    .btn{
+      border:1px solid rgba(15,23,42,.10);
+      background: rgba(255,255,255,.70);
+      padding: 10px 12px;
+      border-radius: 999px;
+      cursor:pointer;
+      transition: transform .12s ease, background .12s ease, border-color .12s ease;
+      display:inline-flex; align-items:center; gap:10px;
+      user-select:none;
+    }
+    .btn:hover{transform: translateY(-1px); background:#fff; border-color: rgba(15,23,42,.14)}
+    .btn:active{transform: translateY(0px)}
+    .btn:disabled{opacity:.55; cursor:not-allowed; transform:none}
+    .btn .k{font-size:12px; color:var(--muted)}
+
+    /* Layout */
+    .hero{padding: 26px 0 18px}
+    .hero h1{margin:0; font-size:22px; letter-spacing:-.2px}
+    .hero p{margin:10px 0 0; color:var(--muted); line-height:1.55; max-width: 70ch}
+
+    .grid{display:grid; grid-template-columns: 1.05fr .95fr; gap:16px; align-items:start}
+    @media (max-width: 980px){ .grid{grid-template-columns:1fr} }
+
+    .card{
+      background:var(--card);
+      border:1px solid rgba(15,23,42,.08);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .cardHd{padding: 16px var(--pad2); border-bottom:1px solid rgba(15,23,42,.07); display:flex; justify-content:space-between; gap:12px; align-items:flex-start}
+    .cardHd h2{margin:0; font-size:14px}
+    .cardHd p{margin:6px 0 0; font-size:12px; color:var(--muted); line-height:1.45}
+    .cardBd{padding: var(--pad)}
+
+    /* Stepper */
+    .steps{
+      display:flex; flex-wrap:wrap; gap:8px;
+      padding: 14px var(--pad2);
+      border-bottom: 1px solid rgba(15,23,42,.07);
+      background: rgba(15,23,42,.02);
+    }
+    .chip{
+      padding: 8px 10px;
+      border-radius: 999px;
+      border:1px solid rgba(15,23,42,.10);
+      background: rgba(255,255,255,.65);
+      color:var(--muted);
+      font-size:12px;
+      display:inline-flex; gap:8px; align-items:center;
+      cursor:pointer;
+      user-select:none;
+    }
+    .chip b{
+      width:18px; height:18px; border-radius:50%;
+      display:grid; place-items:center;
+      font-size:11px;
+      background: rgba(15,23,42,.06);
+      border:1px solid rgba(15,23,42,.08);
+      color:var(--muted);
+      font-weight:600;
+    }
+    .chip[data-current="1"]{background: rgba(59,130,246,.10); border-color: rgba(59,130,246,.28); color: var(--text)}
+    .chip[data-current="1"] b{background: rgba(59,130,246,.12); border-color: rgba(59,130,246,.22); color: var(--text)}
+    .chip[data-done="1"]{background: rgba(16,185,129,.10); border-color: rgba(16,185,129,.28)}
+    .chip[data-done="1"] b{background: rgba(16,185,129,.12); border-color: rgba(16,185,129,.24); color: rgba(16,185,129,1)}
+
+    /* Inputs */
+    .field{display:flex; flex-direction:column; gap:8px}
+    label{font-size:12px; color:var(--muted)}
+    input, textarea{
+      border:1px solid rgba(15,23,42,.12);
+      border-radius: 14px;
+      padding: 12px 12px;
+      background: rgba(255,255,255,.85);
+      outline:none;
+      transition: border-color .12s ease, background .12s ease;
+    }
+    textarea{min-height: 110px; resize: vertical}
+    input:focus, textarea:focus{border-color: rgba(59,130,246,.35); background:#fff}
+
+    .two{display:grid; grid-template-columns: 1fr 1fr; gap:14px}
+    @media (max-width: 760px){ .two{grid-template-columns:1fr} }
+
+    .muted{color:var(--muted)}
+    .row{display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap}
+    .actions{margin-top: 18px; display:flex; gap:10px; justify-content:space-between}
+
+    .primary{
+      border-color: rgba(59,130,246,.30);
+      background: rgba(59,130,246,.12);
+    }
+    .good{
+      border-color: rgba(16,185,129,.30);
+      background: rgba(16,185,129,.12);
+    }
+    .ghost{background: transparent}
+
+    /* Package cards */
+    .pkgGrid{display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:14px}
+    @media (max-width: 940px){ .pkgGrid{grid-template-columns:1fr} }
+
+    .pkg{
+      border:1px solid rgba(15,23,42,.10);
+      border-radius: var(--r2);
+      padding: 18px;
+      background: rgba(255,255,255,.75);
+      cursor:pointer;
+      transition: transform .12s ease, border-color .12s ease, background .12s ease;
+    }
+    .pkg:hover{transform: translateY(-2px); background:#fff; border-color: rgba(15,23,42,.14)}
+    .pkg[data-sel="1"]{border-color: rgba(59,130,246,.35); background: rgba(59,130,246,.07)}
+    .pkg h3{margin:0 0 8px; font-size:14px}
+    .pkg .meta{font-size:12px; color:var(--muted); line-height:1.45}
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      font-size:11px; color:var(--muted);
+      border:1px solid rgba(15,23,42,.10);
+      background: rgba(15,23,42,.03);
+      padding: 6px 10px;
+      border-radius: 999px;
+      margin-top: 12px;
+    }
+
+    /* Files */
+    .drop{
+      border:1px dashed rgba(15,23,42,.22);
+      border-radius: var(--r2);
+      padding: 14px;
+      background: rgba(15,23,42,.02);
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .mini{padding:8px 10px; border-radius: 12px; font-size:12px}
+
+    .list{display:flex; flex-direction:column; gap:10px; margin-top: 12px}
+    .item{
+      border:1px solid rgba(15,23,42,.10);
+      border-radius: 14px;
+      padding: 12px 12px;
+      display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+      background: rgba(255,255,255,.72);
+    }
+    .item b{font-size:12px}
+    .item .meta{font-size:11px; color:var(--muted); margin-top:4px}
+
+    /* Toast */
+    .toast{
+      position: fixed;
+      left:50%; bottom: 18px;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,.92);
+      border:1px solid rgba(15,23,42,.12);
+      padding: 10px 12px;
+      border-radius: 999px;
+      box-shadow: var(--shadow);
+      color: var(--text);
+      font-size:12px;
+      display:none;
+      gap:10px;
+      align-items:center;
+      z-index:40;
+      backdrop-filter: blur(10px);
+    }
+    .toast.show{display:flex; animation: pop .18s ease-out}
+    @keyframes pop { from{transform: translateX(-50%) translateY(6px); opacity:0} to{transform: translateX(-50%) translateY(0); opacity:1} }
+
+    /* Tiny helpers */
+    .hr{height:1px; background: rgba(15,23,42,.08); margin: 18px 0}
+    .rightCard .cardBd{padding: 22px}
+    .kv{display:flex; justify-content:space-between; gap:12px; padding: 10px 0; border-bottom:1px solid rgba(15,23,42,.06); font-size:12px}
+    .kv:last-child{border-bottom:none}
+    .kv span{color:var(--muted); text-align:right}
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div class="topIn">
+      <div class="brand">
+        <div class="mark" aria-hidden="true"></div>
+        <div class="brandText">
+          <b>One Thread</b>
+          <span>Conversation → agreement → payment → booked call → everything in one thread</span>
+        </div>
+      </div>
+      <div class="topBtns">
+        <button class="btn" id="copyBtn" type="button"><span>Share</span><span class="k">Copy link</span></button>
+        <button class="btn" id="resetBtn" type="button"><span>Reset</span><span class="k">Fresh start</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="hero">
+      <h1>Intake → proposal → invoice/deposit → booked session → portal</h1>
+      <p>
+        A minimal prototype for consultants. The point: the client never bounces between five tools.
+        They follow one clear path, and everything stays attached to the same paid thread.
+      </p>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="steps" id="steps"></div>
+        <div class="cardHd">
+          <div>
+            <h2 id="title">—</h2>
+            <p id="sub">—</p>
+          </div>
+        </div>
+        <div class="cardBd" id="screen"></div>
+      </div>
+
+      <div class="card rightCard">
+        <div class="cardHd">
+          <div>
+            <h2>Summary</h2>
+            <p>Live preview of what the client is agreeing to and paying for.</p>
+          </div>
+        </div>
+        <div class="cardBd" id="summary"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"><span>✓</span><span id="toastText">Done</span></div>
+
+  <script>
+  (() => {
+    const STEPS = [
+      { id: 'package', label: 'Package' },
+      { id: 'intake',  label: 'Intake' },
+      { id: 'review',  label: 'Review' },
+      { id: 'pay',     label: 'Deposit' },
+      { id: 'book',    label: 'Book' },
+      { id: 'thread',  label: 'Thread' },
+    ];
+
+    const PACKAGES = [
+      {
+        id:'discovery',
+        name:'Paid Discovery Call',
+        price: 250,
+        depositType:'full',
+        timeline:'45 min',
+        bullets:['Call + recording','Action plan','Next-step recommendation'],
+      },
+      {
+        id:'sprint',
+        name:'Strategy Sprint',
+        price: 2500,
+        depositType:'percent',
+        depositPercent:50,
+        timeline:'7 days',
+        bullets:['2 calls','Strategy doc','Funnel outline + KPIs'],
+      },
+      {
+        id:'support',
+        name:'Implementation Support',
+        price: 6000,
+        depositType:'fixed',
+        depositAmount:1000,
+        timeline:'4 weeks',
+        bullets:['Weekly calls','Async feedback','Iteration support'],
+      }
+    ];
+
+    const REQUIRED = ['name','email','goal','blocker'];
+
+    const KEY = 'one-thread-min-v1';
+
+    const blank = () => ({
+      v:1,
+      step:0,
+      pkgId:null,
+      intake:{ name:'', email:'', company:'', link:'', goal:'', blocker:'' },
+      files:[],
+      accepted:false,
+      payment:{ paid:false, invoiceId:null, paidAt:null, deposit:0, total:0 },
+      booking:{ booked:false, when:null, tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local' },
+      thread:[]
+    });
+
+    let S = blank();
+
+    const $ = (q) => document.querySelector(q);
+    const esc = (s='') => String(s)
+      .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
+      .replaceAll('"','&quot;').replaceAll("'",'&#039;');
+
+    const money = (n) => '$' + (Number(n)||0).toLocaleString(undefined,{maximumFractionDigits:0});
+
+    function toast(msg){
+      $('#toastText').textContent = msg;
+      const t = $('#toast');
+      t.classList.add('show');
+      clearTimeout(toast._t);
+      toast._t = setTimeout(()=>t.classList.remove('show'), 1400);
+    }
+
+    function pkg(){
+      return PACKAGES.find(p => p.id === S.pkgId) || null;
+    }
+
+    function totals(){
+      const p = pkg();
+      const total = p ? p.price : 0;
+      let deposit = 0;
+      if (!p) deposit = 0;
+      else if (p.depositType === 'full') deposit = total;
+      else if (p.depositType === 'fixed') deposit = Math.min(p.depositAmount, total);
+      else if (p.depositType === 'percent') deposit = Math.round((p.depositPercent/100) * total);
+      return { total, deposit };
+    }
+
+    function requiredOK(){
+      return REQUIRED.every(k => (S.intake[k] || '').trim().length > 0);
+    }
+
+    function stepDone(id){
+      const { total, deposit } = totals();
+      if (id==='package') return !!S.pkgId;
+      if (id==='intake') return requiredOK();
+      if (id==='review') return S.accepted;
+      if (id==='pay') return S.payment.paid && S.payment.total===total && S.payment.deposit===deposit;
+      if (id==='book') return S.booking.booked;
+      return false;
+    }
+
+    function pushThread(type, title, detail=''){
+      S.thread.unshift({ ts: Date.now(), type, title, detail });
+    }
+
+    // --- Share link (state in hash)
+    function encode(st){
+      const json = JSON.stringify(st);
+      const b64 = btoa(unescape(encodeURIComponent(json)))
+        .replaceAll('+','-').replaceAll('/','_').replaceAll('=','.');
+      return b64;
+    }
+    function decode(h){
+      try{
+        const b64 = h.replaceAll('-','+').replaceAll('_','/').replaceAll('.','=');
+        const json = decodeURIComponent(escape(atob(b64)));
+        const st = JSON.parse(json);
+        if (st && st.v===1) return st;
+      }catch(e){}
+      return null;
+    }
+
+    function save(){
+      localStorage.setItem(KEY, JSON.stringify(S));
+      history.replaceState(null,'', '#' + encode(S));
+    }
+
+    function load(){
+      const h = (location.hash||'').slice(1).trim();
+      const fromHash = h ? decode(h) : null;
+      if (fromHash) { S = fromHash; return; }
+      try{
+        const raw = localStorage.getItem(KEY);
+        if (raw) {
+          const st = JSON.parse(raw);
+          if (st && st.v===1) S = st;
+        }
+      }catch(e){}
+    }
+
+    function goto(i){
+      S.step = Math.max(0, Math.min(STEPS.length-1, i));
+      save();
+      render();
+      window.scrollTo({top:0, behavior:'smooth'});
+    }
+
+    // --- Screens
+    function setHeader(title, sub){
+      $('#title').textContent = title;
+      $('#sub').textContent = sub;
+    }
+
+    function renderSteps(){
+      const el = $('#steps');
+      el.innerHTML = STEPS.map((s, i) => {
+        const cur = i === S.step ? '1' : '0';
+        const done = stepDone(s.id) ? '1' : '0';
+        const n = done==='1' ? '✓' : String(i+1);
+        return `<div class="chip" data-step="${i}" data-current="${cur}" data-done="${done}" role="button" tabindex="0"><b>${n}</b><span>${esc(s.label)}</span></div>`;
+      }).join('');
+
+      el.querySelectorAll('.chip').forEach(ch => {
+        const i = Number(ch.dataset.step);
+        const act = () => goto(i);
+        ch.addEventListener('click', act);
+        ch.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); act(); } });
+      });
+    }
+
+    function renderSummary(){
+      const p = pkg();
+      const { total, deposit } = totals();
+      const booked = S.booking.booked && S.booking.when ? new Date(S.booking.when).toLocaleString() : '—';
+      $('#summary').innerHTML = `
+        <div class="kv"><b>Package</b><span>${p ? esc(p.name) : '—'}</span></div>
+        <div class="kv"><b>Total</b><span>${money(total)}</span></div>
+        <div class="kv"><b>Deposit</b><span>${money(deposit)}</span></div>
+        <div class="kv"><b>Intake</b><span>${requiredOK() ? 'Complete' : 'Missing required'}</span></div>
+        <div class="kv"><b>Status</b><span>${S.payment.paid ? 'Deposit paid' : 'Not paid'}</span></div>
+        <div class="kv"><b>Booking</b><span>${booked}</span></div>
+        <div class="kv"><b>Files</b><span>${S.files.length ? S.files.length + ' file(s)' : '—'}</span></div>
+      `;
+    }
+
+    function screenPackage(){
+      setHeader('Pick a package', 'Clear scope and deposit. One decision, then one flow.');
+      const cards = PACKAGES.map(p => {
+        const sel = S.pkgId === p.id ? '1' : '0';
+        const depositLabel = p.depositType==='full' ? 'Pay in full' : (p.depositType==='fixed' ? `Deposit ${money(p.depositAmount)}` : `Deposit ${p.depositPercent}%`);
+        return `
+          <div class="pkg" data-id="${p.id}" data-sel="${sel}" role="button" tabindex="0">
+            <h3>${esc(p.name)}</h3>
+            <div class="meta">${money(p.price)} • ${esc(p.timeline)}</div>
+            <div class="pill">${esc(depositLabel)}</div>
+            <div class="hr"></div>
+            <div class="meta">${p.bullets.map(b=>`• ${esc(b)}`).join('<br/>')}</div>
+          </div>
+        `;
+      }).join('');
+
+      $('#screen').innerHTML = `
+        <div class="pkgGrid">${cards}</div>
+        <div class="actions">
+          <button class="btn ghost" type="button" disabled>Back</button>
+          <button class="btn primary" id="next" type="button" ${S.pkgId ? '' : 'disabled'}>Continue</button>
+        </div>
+      `;
+
+      const pick = (id) => {
+        S.pkgId = id;
+        pushThread('select', 'Package selected', id);
+        save();
+        render();
+      };
+
+      document.querySelectorAll('.pkg').forEach(el => {
+        const id = el.dataset.id;
+        el.addEventListener('click', ()=>pick(id));
+        el.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); pick(id); } });
+      });
+
+      $('#next').addEventListener('click', ()=>goto(1));
+    }
+
+    function screenIntake(){
+      setHeader('Quick intake', 'Only what’s needed to run a high-quality call.');
+      const v = S.intake;
+      $('#screen').innerHTML = `
+        <div class="two">
+          <div class="field"><label>Your name *</label><input id="name" type="text" value="${esc(v.name)}" placeholder="Full name" /></div>
+          <div class="field"><label>Email *</label><input id="email" type="email" value="${esc(v.email)}" placeholder="name@company.com" /></div>
+          <div class="field"><label>Company (optional)</label><input id="company" type="text" value="${esc(v.company)}" placeholder="Company" /></div>
+          <div class="field"><label>Website / link (optional)</label><input id="link" type="text" value="${esc(v.link)}" placeholder="https://" /></div>
+          <div class="field" style="grid-column:1/-1"><label>What do you want to achieve in the next 30–60 days? *</label><textarea id="goal" placeholder="Be specific about outcomes.">${esc(v.goal)}</textarea></div>
+          <div class="field" style="grid-column:1/-1"><label>What’s blocking you right now? *</label><textarea id="blocker" placeholder="Main constraint.">${esc(v.blocker)}</textarea></div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="row">
+          <div>
+            <b style="font-size:13px">Optional files</b>
+            <div class="muted" style="font-size:12px; margin-top:6px">In this prototype, files are stored locally (name + size) to show the portal concept.</div>
+          </div>
+        </div>
+
+        <div class="drop" id="drop">
+          <span class="muted" style="font-size:12px">Drag & drop files here</span>
+          <div>
+            <button class="btn mini" id="pick" type="button">Choose files</button>
+            <input id="file" type="file" multiple style="display:none" />
+          </div>
+        </div>
+
+        <div class="list" id="fileList"></div>
+
+        <div class="actions">
+          <button class="btn ghost" id="back" type="button">Back</button>
+          <button class="btn primary" id="next" type="button" ${requiredOK() ? '' : 'disabled'}>Review proposal</button>
+        </div>
+      `;
+
+      const commit = () => {
+        const nextBefore = requiredOK();
+        S.intake = {
+          name: $('#name').value,
+          email: $('#email').value,
+          company: $('#company').value,
+          link: $('#link').value,
+          goal: $('#goal').value,
+          blocker: $('#blocker').value,
+        };
+        const nextAfter = requiredOK();
+        if (nextAfter && !nextBefore) pushThread('intake','Intake complete','Required fields filled');
+        save();
+        renderSummary();
+        $('#next').disabled = !nextAfter;
+      };
+
+      ['name','email','company','link','goal','blocker'].forEach(id => {
+        $('#'+id).addEventListener('input', commit);
+      });
+
+      function renderFiles(){
+        const el = $('#fileList');
+        if (!S.files.length) {
+          el.innerHTML = `<div class="muted" style="font-size:12px">No files added yet.</div>`;
+          return;
+        }
+        el.innerHTML = S.files.map((f,i)=>`
+          <div class="item">
+            <div>
+              <b>${esc(f.name)}</b>
+              <div class="meta">${esc(f.size)} • ${new Date(f.addedAt).toLocaleString()}</div>
+            </div>
+            <button class="btn mini" data-rm="${i}" type="button">Remove</button>
+          </div>
+        `).join('');
+
+        el.querySelectorAll('[data-rm]').forEach(b=>{
+          b.addEventListener('click', ()=>{
+            const idx = Number(b.dataset.rm);
+            const removed = S.files[idx];
+            S.files.splice(idx,1);
+            pushThread('files','File removed', removed ? removed.name : '');
+            save();
+            renderFiles();
+            renderSummary();
+          });
+        });
+      }
+
+      function addFiles(list){
+        const now = Date.now();
+        [...list].forEach(file => {
+          S.files.unshift({
+            name: file.name,
+            size: (file.size/1024).toFixed(1) + ' KB',
+            addedAt: now,
+          });
+        });
+        pushThread('files','Files added', list.length + ' file(s)');
+        save();
+        renderFiles();
+        renderSummary();
+        toast('Files added');
+      }
+
+      // drop
+      const drop = $('#drop');
+      const input = $('#file');
+      $('#pick').addEventListener('click', ()=> input.click());
+      input.addEventListener('change', ()=>{
+        if (input.files && input.files.length) addFiles(input.files);
+        input.value = '';
+      });
+      ;['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,(e)=>{ e.preventDefault(); drop.style.background = 'rgba(59,130,246,.06)'; }));
+      ;['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,(e)=>{ e.preventDefault(); drop.style.background = 'rgba(15,23,42,.02)'; }));
+      drop.addEventListener('drop', (e)=>{ if(e.dataTransfer.files?.length) addFiles(e.dataTransfer.files); });
+
+      renderFiles();
+
+      $('#back').addEventListener('click', ()=>goto(0));
+      $('#next').addEventListener('click', ()=>goto(2));
+    }
+
+    function screenReview(){
+      const p = pkg();
+      if (!p) return goto(0);
+      setHeader('Proposal (simple, one screen)', 'Client agrees, then pays deposit to unlock booking.');
+
+      const { total, deposit } = totals();
+      const client = (S.intake.name || 'Client').trim();
+
+      const terms = [
+        'Reschedule with 24h notice',
+        'Deposit is non-refundable (credited if rescheduled within 7 days)',
+        'Balance due before session #2 or before deliverables are shared',
+        'Communication stays in this thread'
+      ];
+
+      $('#screen').innerHTML = `
+        <div class="row" style="align-items:flex-start">
+          <div>
+            <b style="font-size:14px">${esc(p.name)}</b>
+            <div class="muted" style="font-size:12px; margin-top:6px">For ${esc(client)} • Timeline: ${esc(p.timeline)}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="muted" style="font-size:12px">Total</div>
+            <div style="font-size:18px; letter-spacing:-.2px">${money(total)}</div>
+            <div class="muted" style="font-size:12px; margin-top:4px">Deposit now: <b style="color:var(--text)">${money(deposit)}</b></div>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="two">
+          <div>
+            <b style="font-size:13px">Summary</b>
+            <div class="muted" style="font-size:12px; margin-top:10px; line-height:1.6">
+              <b style="color:var(--text)">Goal:</b> ${esc(S.intake.goal || '—')}<br/>
+              <b style="color:var(--text)">Blocker:</b> ${esc(S.intake.blocker || '—')}
+            </div>
+          </div>
+          <div>
+            <b style="font-size:13px">Included</b>
+            <div class="muted" style="font-size:12px; margin-top:10px; line-height:1.7">
+              ${p.bullets.map(b=>`• ${esc(b)}`).join('<br/>')}
+            </div>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <b style="font-size:13px">Terms</b>
+        <div class="muted" style="font-size:12px; margin-top:10px; line-height:1.7">
+          ${terms.map(t=>`• ${esc(t)}`).join('<br/>')}
+        </div>
+
+        <div class="actions">
+          <button class="btn ghost" id="back" type="button">Back</button>
+          <button class="btn good" id="accept" type="button">Agree & continue</button>
+        </div>
+      `;
+
+      $('#back').addEventListener('click', ()=>goto(1));
+      $('#accept').addEventListener('click', ()=>{
+        S.accepted = true;
+        pushThread('proposal','Proposal accepted','Client agreed to scope + terms');
+        save();
+        toast('Accepted');
+        goto(3);
+      });
+    }
+
+    function screenPay(){
+      const p = pkg();
+      if (!p) return goto(0);
+      const { total, deposit } = totals();
+      setHeader('Pay deposit (mock checkout)', 'In the real product, this is Stripe + receipt + unlock booking.');
+
+      const paid = S.payment.paid;
+      const inv = S.payment.invoiceId || '—';
+
+      $('#screen').innerHTML = `
+        <div class="two">
+          <div class="field"><label>Card number (mock)</label><input value="4242 4242 4242 4242" /></div>
+          <div class="field"><label>Billing email</label><input value="${esc(S.intake.email)}" /></div>
+          <div class="field"><label>Expiry</label><input value="12/34" /></div>
+          <div class="field"><label>CVC</label><input value="123" /></div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="row">
+          <div class="muted" style="font-size:12px">Invoice</div>
+          <div class="muted" style="font-size:12px">INV-${esc(inv)}</div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div><b style="font-size:13px">Deposit due</b></div>
+          <div><b style="font-size:13px">${money(deposit)}</b> <span class="muted" style="font-size:12px">of ${money(total)}</span></div>
+        </div>
+
+        <div class="actions">
+          <button class="btn ghost" id="back" type="button">Back</button>
+          <button class="btn good" id="pay" type="button" ${paid ? 'disabled' : ''}>${paid ? 'Deposit paid' : `Pay deposit ${money(deposit)}`}</button>
+        </div>
+
+        ${paid ? `<div class="muted" style="font-size:12px; margin-top:14px">Payment captured. Booking is now unlocked.</div>
+                 <div style="margin-top:12px"><button class="btn primary" id="toBook" type="button">Book your call</button></div>` : ''}
+      `;
+
+      $('#back').addEventListener('click', ()=>goto(2));
+
+      $('#pay').addEventListener('click', ()=>{
+        const invoiceId = S.payment.invoiceId || String(Math.floor(100000 + Math.random()*900000));
+        S.payment = { paid:true, invoiceId, paidAt: Date.now(), total, deposit };
+        pushThread('payment','Deposit paid', `${money(deposit)} of ${money(total)}`);
+        save();
+        toast('Paid');
+        render();
+      });
+
+      $('#toBook')?.addEventListener('click', ()=>goto(4));
+    }
+
+    function nextSlots(){
+      const out = [];
+      const start = new Date();
+      start.setDate(start.getDate()+1);
+      const times = ['10:00','13:00','16:00'];
+      for (let d=0; d<10; d++){
+        const day = new Date(start);
+        day.setDate(start.getDate()+d);
+        const label = day.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
+        for (const t of times){
+          const iso = new Date(day.toDateString() + ' ' + t).toISOString();
+          out.push({ label, t, iso });
+        }
+      }
+      return out;
+    }
+
+    function screenBook(){
+      setHeader('Book your call', 'Slots appear only after deposit.');
+
+      if (!S.payment.paid) {
+        $('#screen').innerHTML = `
+          <div class="muted" style="line-height:1.7">
+            Booking is locked until deposit is paid.
+          </div>
+          <div class="actions">
+            <button class="btn ghost" id="back" type="button">Back</button>
+            <button class="btn primary" id="toPay" type="button">Go to deposit</button>
+          </div>
+        `;
+        $('#back').addEventListener('click', ()=>goto(3));
+        $('#toPay').addEventListener('click', ()=>goto(3));
+        return;
+      }
+
+      const slots = nextSlots();
+      const chosen = S.booking.when;
+
+      const list = slots.map(s => {
+        const sel = chosen === s.iso ? 'background: rgba(59,130,246,.08); border-color: rgba(59,130,246,.24);' : '';
+        return `
+          <div class="item" data-slot="${esc(s.iso)}" style="cursor:pointer; ${sel}">
+            <div>
+              <b>${esc(s.label)} • ${esc(s.t)}</b>
+              <div class="meta">Timezone: ${esc(S.booking.tz)}</div>
+            </div>
+            <div class="meta">${chosen===s.iso ? 'Selected' : 'Pick'}</div>
+          </div>
+        `;
+      }).join('');
+
+      $('#screen').innerHTML = `
+        <div class="muted" style="font-size:12px; margin-bottom:12px">Select a time.</div>
+        <div class="list" id="slots" style="max-height: 360px; overflow:auto">${list}</div>
+        <div class="actions">
+          <button class="btn ghost" id="back" type="button">Back</button>
+          <button class="btn good" id="confirm" type="button" ${chosen ? '' : 'disabled'}>Confirm booking</button>
+        </div>
+      `;
+
+      $('#slots').addEventListener('click', (e)=>{
+        const row = e.target.closest('[data-slot]');
+        if (!row) return;
+        S.booking.when = row.dataset.slot;
+        save();
+        render();
+      });
+
+      $('#back').addEventListener('click', ()=>goto(3));
+      $('#confirm').addEventListener('click', ()=>{
+        if (!S.booking.when) return;
+        S.booking.booked = true;
+        pushThread('booking','Call booked', new Date(S.booking.when).toLocaleString());
+        save();
+        toast('Booked');
+        goto(5);
+      });
+    }
+
+    function screenThread(){
+      setHeader('Client thread', 'Everything stays attached: receipt, booking, files, notes.');
+
+      const p = pkg();
+      const { total, deposit } = totals();
+      const when = S.booking.when ? new Date(S.booking.when).toLocaleString() : '—';
+      const inv = S.payment.invoiceId ? `INV-${S.payment.invoiceId}` : '—';
+
+      const events = (S.thread || []).slice(0, 10).map(e => {
+        const ts = new Date(e.ts).toLocaleString();
+        return `
+          <div class="item">
+            <div>
+              <b>${esc(e.title)}</b>
+              <div class="meta">${esc(e.detail || '')}</div>
+              <div class="meta">${esc(ts)}</div>
+            </div>
+            <div class="meta">${esc(e.type)}</div>
+          </div>
+        `;
+      }).join('') || `<div class="muted" style="font-size:12px">No events yet.</div>`;
+
+      const fileList = S.files.length
+        ? S.files.map(f=>`<div class="item"><div><b>${esc(f.name)}</b><div class="meta">${esc(f.size)}</div></div><div class="meta">file</div></div>`).join('')
+        : `<div class="muted" style="font-size:12px">No files added.</div>`;
+
+      $('#screen').innerHTML = `
+        <div class="two">
+          <div>
+            <div class="item" style="background: rgba(15,23,42,.02)">
+              <div>
+                <b>${esc((S.intake.name||'Client').trim() || 'Client')}</b>
+                <div class="meta">${esc(S.intake.email || '')}</div>
+                <div class="meta">${p ? esc(p.name) : '—'}</div>
+              </div>
+              <div style="text-align:right">
+                <div class="meta">${esc(inv)}</div>
+                <div class="meta">Total ${money(total)}</div>
+                <div class="meta">Deposit ${money(deposit)}</div>
+              </div>
+            </div>
+
+            <div class="hr"></div>
+
+            <b style="font-size:13px">Upcoming session</b>
+            <div class="muted" style="font-size:12px; margin-top:10px; line-height:1.7">
+              ${S.booking.booked ? `Booked: <b style="color:var(--text)">${esc(when)}</b>` : 'Not booked yet.'}
+            </div>
+
+            <div class="hr"></div>
+
+            <b style="font-size:13px">Thread events</b>
+            <div class="list" style="margin-top:12px">${events}</div>
+          </div>
+
+          <div>
+            <b style="font-size:13px">Files</b>
+            <div class="list" style="margin-top:12px">${fileList}</div>
+
+            <div class="hr"></div>
+
+            <button class="btn primary" id="new" type="button">Start new client</button>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn ghost" id="back" type="button">Back</button>
+          <button class="btn" id="copyInvoice" type="button">Copy invoice ID</button>
+        </div>
+      `;
+
+      $('#back').addEventListener('click', ()=>goto(4));
+      $('#new').addEventListener('click', ()=>{
+        const keepStep = 0;
+        S = blank();
+        pushThread('system','Thread created','One link for intake → pay → book → files');
+        save();
+        goto(keepStep);
+      });
+
+      $('#copyInvoice').addEventListener('click', async ()=>{
+        try{
+          await navigator.clipboard.writeText(inv);
+          toast('Copied');
+        }catch(e){ toast('Copy failed'); }
+      });
+    }
+
+    function render(){
+      renderSteps();
+      renderSummary();
+
+      if (S.step === 0) screenPackage();
+      if (S.step === 1) screenIntake();
+      if (S.step === 2) screenReview();
+      if (S.step === 3) screenPay();
+      if (S.step === 4) screenBook();
+      if (S.step === 5) screenThread();
+    }
+
+    // --- Top actions
+    $('#copyBtn').addEventListener('click', async ()=>{
+      try{ await navigator.clipboard.writeText(location.href); toast('Link copied'); }
+      catch(e){ toast('Copy failed'); }
+    });
+
+    $('#resetBtn').addEventListener('click', ()=>{
+      S = blank();
+      pushThread('system','Thread created','One link for intake → pay → book → files');
+      localStorage.removeItem(KEY);
+      save();
+      toast('Reset');
+      render();
+    });
+
+    // --- Init
+    load();
+    if (!S.thread?.length) pushThread('system','Thread created','One link for intake → pay → book → files');
+    if (S.payment?.paid && !S.payment.invoiceId) S.payment.invoiceId = String(Math.floor(100000 + Math.random()*900000));
+    save();
+    render();
+  })();
+  </script>
+</body>
+</html>
